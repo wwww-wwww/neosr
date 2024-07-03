@@ -64,6 +64,8 @@ class paired(data.Dataset):
         self.mean = opt.get("mean")
         self.std = opt.get("std")
         self.color = self.opt.get("color", None) != "y"
+        self.auto_components = self.opt.get("auto_components", True)
+
         self.gt_folder, self.lq_folder = opt["dataroot_gt"], opt["dataroot_lq"]
 
         # file client (lmdb io backend)
@@ -104,7 +106,9 @@ class paired(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")  # type: ignore[attr-defined]
 
         try:
-            img_gt: np.ndarray | ArrayLike = imfrombytes(img_bytes, float32=True)
+            img_gt: np.ndarray | ArrayLike = imfrombytes(
+                img_bytes, float32=True, auto_components=self.auto_components
+            )
         except AttributeError:
             raise AttributeError(gt_path)
 
@@ -112,7 +116,9 @@ class paired(data.Dataset):
         img_bytes = self.file_client.get(lq_path, "lq")  # type: ignore[attr-defined]
 
         try:
-            img_lq: np.ndarray | ArrayLike = imfrombytes(img_bytes, float32=True)
+            img_lq: np.ndarray | ArrayLike = imfrombytes(
+                img_bytes, float32=True, auto_components=self.auto_components
+            )
         except AttributeError:
             raise AttributeError(lq_path)
 
