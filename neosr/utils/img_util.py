@@ -151,7 +151,10 @@ def tensor2img_fast(
 
 
 def imfrombytes(
-    content: bytes, flag: str = "color", float32: bool = False, auto_components: bool = False
+    content: bytes,
+    flag: str = "color",
+    float32: bool = False,
+    auto_components: bool = False
 ) -> np.ndarray | ArrayLike:
     """Read an image from bytes.
 
@@ -171,10 +174,14 @@ def imfrombytes(
     if auto_components:
         from PIL import Image
         import io
-        img_np = Image.open(io.BytesIO(content))
-        img = np.array(img_np)
+        img = Image.open(io.BytesIO(content))
+        img = np.array(img)
         if len(img.shape) == 2:
             img = img.reshape((img.shape[0], img.shape[1], 1))
+        elif img.shape[2] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #elif img.shape[2] == 4:
+        #    img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGRA)
     else:
         img_np = np.frombuffer(content, np.uint8)
         imread_flags = {
@@ -185,7 +192,8 @@ def imfrombytes(
         img = cv2.imdecode(img_np, imread_flags[flag])
 
     if float32:
-        img = img.astype(np.float32) / 255.0
+        img = img.astype(np.float32) / 255.
+
     return img
 
 
