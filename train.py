@@ -7,6 +7,8 @@ from os import path as osp
 from pathlib import Path
 from typing import Any
 
+from rich.progress import Progress, BarColumn, TimeElapsedColumn, TimeRemainingColumn, Text, ProgressColumn
+
 import torch
 from torch.utils import data
 from torch.utils.data.sampler import Sampler
@@ -53,7 +55,7 @@ def init_tb_loggers(opt: dict[str, Any]):
 
 def create_train_val_dataloader(
     opt: dict[str, Any], logger: logging.Logger
-) -> tuple[data.DataLoader | None, Sampler, list[data.DataLoader], int, int]:
+) -> tuple[data.DataLoader | None, Sampler, list[data.DataLoader], int, int, int]:
     # create train and val dataloaders
     train_loader, val_loaders = None, []
 
@@ -113,7 +115,7 @@ def create_train_val_dataloader(
             logger.error(msg)
             sys.exit(1)
 
-    return train_loader, train_sampler, val_loaders, total_epochs, total_iters  # type: ignore[reportPossiblyUnboundVariable]
+    return train_loader, train_sampler, val_loaders, total_epochs, total_iters, num_iter_per_epoch  # type: ignore[reportPossiblyUnboundVariable]
 
 
 def load_resume_state(opt: dict[str, Any]):
@@ -180,7 +182,7 @@ def train_pipeline(root_path: str) -> None:
 
     # WARNING: should not use get_root_logger in the above codes, including the called functions
     # Otherwise the logger will not be properly initialized
-    log_file = Path(opt["path"]["log"]) / f"train_{opt["name"]}_{get_time_str()}.log"
+    log_file = Path(opt["path"]["log"]) / f"train_{opt['name']}_{get_time_str()}.log"
     logger = get_root_logger(
         logger_name="neosr", log_level=logging.INFO, log_file=str(log_file)
     )
@@ -192,7 +194,7 @@ def train_pipeline(root_path: str) -> None:
 
     # create train and validation dataloaders
     result = create_train_val_dataloader(opt, logger)
-    train_loader, train_sampler, val_loaders, total_epochs, total_iters = result
+    train_loader, train_sampler, val_loaders, total_epochs, total_iters, num_iter_per_epoch = result
 
     # create model
     model = build_model(opt)
@@ -201,7 +203,7 @@ def train_pipeline(root_path: str) -> None:
         # handle optimizers and schedulers
         model.resume_training(resume_state)  # type: ignore[reportAttributeAccessIssue,attr-defined]
         logger.info(
-            f"{tc.light_green}Resuming training from epoch: {resume_state["epoch"]}, iter: {int(resume_state["iter"])}{tc.end}"
+            f"{tc.light_green}Resuming training from epoch: {resume_state['epoch']}, iter: {int(resume_state['iter'])}{tc.end}"
         )
         start_epoch = resume_state["epoch"]
         current_iter = int(
@@ -240,10 +242,43 @@ def train_pipeline(root_path: str) -> None:
     start_time = time.time()
 
     try:
+        class SpeedColumn(ProgressColumn):
+
+            def render(self, task) -> Text:
+                if task.speed is None:
+                    return Text("")
+                else:
+                    return Text(f"{task.speed:.3f} it/s")
+
+
+        progress = Progress(
+            "[progress.description]{task.description}",
+            BarColumn(None),
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            "[progress.download]{task.completed}/{task.total}",
+            SpeedColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            expand=True,
+        )
+        task_epochs = progress.add_task("epochs", total=total_epochs)
+        task_iters = progress.add_task("iters", total=total_iters)
+        task_epoch = progress.add_task("epoch", total=num_iter_per_epoch)
+        progress.start()
+        print("skipping", current_iter % num_iter_per_epoch)
+        resume_skip = current_iter % num_iter_per_epoch
         for epoch in range(start_epoch, total_epochs + 1):
             train_sampler.set_epoch(epoch)  # type: ignore[attr-defined]
             prefetcher.reset()  # type: ignore[reportPossiblyUnboundVariable]
             train_data = prefetcher.next()  # type: ignore[reportPossiblyUnboundVariable]
+
+            progress.update(task_epochs, completed=epoch)
+            progress.reset(task_epoch)
+
+            for _i in range(resume_skip):
+                train_data = prefetcher.next()
+            progress.update(task_epoch, completed=resume_skip)
+            resume_skip = 0
 
             while train_data is not None:
                 # data_timer.record()
@@ -269,6 +304,9 @@ def train_pipeline(root_path: str) -> None:
                     current_iter_log = current_iter / accumulate
                 else:
                     current_iter_log = current_iter
+
+                progress.update(task_iters, completed=current_iter)
+                progress.update(task_epoch, advance=1)
 
                 if current_iter_log % print_freq == 0:
                     log_vars = {"epoch": epoch, "iter": current_iter_log}
@@ -315,6 +353,8 @@ def train_pipeline(root_path: str) -> None:
                 iter_timer.start()
                 train_data = prefetcher.next()  # type: ignore[reportPossiblyUnboundVariable]
             # end of iter
+
+        progress.stop()
 
         # end of epoch
 
