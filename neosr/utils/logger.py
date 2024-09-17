@@ -98,7 +98,9 @@ class MessageLogger:
             iter_time /= self.accumulate
 
             total_time = time.time() - self.start_time
-            time_sec_avg = total_time / (current_iter - self.start_iter - 1)
+            diff = (current_iter - self.start_iter - 1)
+            if diff == 0: diff = 1
+            time_sec_avg = total_time / (diff)
             eta_sec = time_sec_avg * (self.max_iters - current_iter - 1)
             eta_str = str(datetime.timedelta(seconds=int(eta_sec)))
             message += f" [ performance: {iter_time:.3f} it/s ] [ lr: "
@@ -116,7 +118,7 @@ class MessageLogger:
                     self.tb_logger.add_scalar(f"losses/{k}", v, current_iter)
                 else:
                     self.tb_logger.add_scalar(k, v, current_iter)
-        self.logger.info(message)
+        #self.logger.info(message)
 
 
 @master_only
