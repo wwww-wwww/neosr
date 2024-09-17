@@ -57,6 +57,7 @@ def build_dataloader(
     dist: bool = False,
     sampler: Sampler | None = None,
     seed: int | None = None,
+    num_workers = 10,
 ) -> data.DataLoader:
     """Build dataloader.
 
@@ -81,7 +82,7 @@ def build_dataloader(
     # train
     if phase == "train":
         if dataset_opt.get("num_worker_per_gpu", "auto") == "auto" or None:
-            num_workers = os.cpu_count()
+            num_workers = num_workers
         else:
             num_workers = dataset_opt["num_worker_per_gpu"]
         if dist:  # distributed training
