@@ -180,13 +180,17 @@ def imfrombytes(
         #elif img.shape[2] == 4:
         #    img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGRA)
     else:
-        img_np = np.frombuffer(content, np.uint8)
-        imread_flags = {
-            'color': cv2.IMREAD_COLOR,
-            'grayscale': cv2.IMREAD_GRAYSCALE,
-            'unchanged': cv2.IMREAD_UNCHANGED
-        }
-        img = cv2.imdecode(img_np, imread_flags[flag])
+        import io
+        img = np.load(io.BytesIO(content))["arr_0"]
+        if len(img.shape) == 2:
+            img = img.reshape((img.shape[0], img.shape[1], 1))
+        #img_np = np.frombuffer(content, np.uint8)
+        #imread_flags = {
+        #    'color': cv2.IMREAD_COLOR,
+        #    'grayscale': cv2.IMREAD_GRAYSCALE,
+        #    'unchanged': cv2.IMREAD_UNCHANGED
+        #}
+        #img = cv2.imdecode(img_np, imread_flags[flag])
 
     if float32:
         img = img.astype(np.float32) / 255.0
@@ -218,7 +222,8 @@ def imwrite(
         dir_name = Path(Path(file_path).parent).resolve()
         Path(dir_name).mkdir(parents=True, exist_ok=True)
     try:
-        cv2.imencode(Path(file_path).suffix, img, params or [])[1].tofile(file_path)
+        np.savez_compressed(Path(file_path), img)
+        #cv2.imencode(Path(file_path).suffix, img, params or [])[1].tofile(file_path)
     except:
         msg = "Failed to write images."
         raise OSError(msg)

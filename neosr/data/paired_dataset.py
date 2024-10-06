@@ -64,7 +64,7 @@ class paired(data.Dataset):
         self.mean = opt.get("mean")
         self.std = opt.get("std")
         self.color = self.opt.get("color", None) != "y"
-        self.auto_components = self.opt.get("auto_components", True)
+        self.auto_components = self.opt.get("auto_components", False)
 
         self.gt_folder, self.lq_folder = opt["dataroot_gt"], opt["dataroot_lq"]
 

@@ -97,8 +97,8 @@ def paired_random_crop(
         sys.exit(1)
 
     # randomly choose top and left coordinates for lq patch
-    top = random.randint(0, h_lq - lq_patch_size)
-    left = random.randint(0, w_lq - lq_patch_size)
+    top =  (random.randint(0, h_lq - lq_patch_size) // 16) * 16
+    left = (random.randint(0, w_lq - lq_patch_size) // 16) * 16
 
     # crop lq patch
     if input_type == "Tensor":
